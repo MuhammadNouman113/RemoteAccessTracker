@@ -1,16 +1,24 @@
-# Get all RDP logon events from the Security Event Log
-$rdpLogons = Get-WinEvent -LogName Security | Where-Object {
-    $_.Id -eq 4624 -and $_.Properties[8].Value -eq 10
+# Define the filter for event log retrieval
+$eventFilter = @{
+    LogName   = 'Security'
+    ID        = 4624
+    StartTime = (Get-Date).AddDays(-1)  # Get events from the last 24 hours
 }
 
-# Extract user and IP information
+# Get only the filtered RDP logon events
+$rdpLogons = Get-WinEvent -FilterHashtable $eventFilter -ErrorAction SilentlyContinue
+
+# Process and extract user/IP details
 $rdpSessions = $rdpLogons | ForEach-Object {
-    [PSCustomObject]@{
-        TimeStamp = $_.TimeCreated
-        User      = $_.Properties[5].Value
-        IP        = $_.Properties[18].Value
+    $eventData = $_.Properties
+    if ($eventData.Count -gt 18) {  # Ensure properties exist
+        [PSCustomObject]@{
+            TimeStamp = $_.TimeCreated
+            User      = $eventData[5].Value
+            IP        = $eventData[18].Value
+        }
     }
 }
 
-# Display unique connections
+# Remove duplicate entries and format output
 $rdpSessions | Sort-Object IP, User -Unique | Format-Table -AutoSize
